@@ -1,0 +1,106 @@
+name: Build Spider Night APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build APK
+        run: |
+          mkdir -p app/src/main/assets
+          cp "Spider Night (1).html" app/src/main/assets/index.html
+          mkdir -p app/src/main/java/com/spidernight/game
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "SpiderNight"
+          include ':app'
+          EOF
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.6.1' apply false
+          }
+          EOF
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.spidernight.game'
+              compileSdk 35
+              defaultConfig {
+                  applicationId 'com.spidernight.game'
+                  minSdk 23
+                  targetSdk 28
+                  versionCode 1
+                  versionName '1.0'
+              }
+          }
+          EOF
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application android:theme="@android:style/Theme.Material.NoActionBar" android:label="Spider Night" android:usesCleartextTraffic="true">
+                  <activity android:name=".MainActivity" android:screenOrientation="landscape" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+          cat > app/src/main/java/com/spidernight/game/MainActivity.java <<'EOF'
+          package com.spidernight.game;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebSettings;
+          public class MainActivity extends Activity {
+              @Override public void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  WebView w = new WebView(this);
+                  WebSettings s = w.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  w.setWebViewClient(new android.webkit.WebViewClient());
+                  setContentView(w);
+                  w.loadUrl("file:///android_asset/index.html");
+              }
+          }
+          EOF
+          gradle --no-daemon assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Night-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
